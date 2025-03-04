@@ -1,8 +1,51 @@
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Component, ErrorInfo, ReactNode } from 'react';
 import './App.css';
 import { v4 as uuidv4 } from 'uuid';
 import EmojiPicker from 'emoji-picker-react';
+
+// Error boundary to prevent the entire app from crashing
+class ErrorBoundary extends Component<{children: ReactNode}> {
+  state = { hasError: false };
+  
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("Error in component:", error, info);
+  }
+  
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '20px', textAlign: 'center' }}>
+          <h2>Something went wrong.</h2>
+          <button 
+            onClick={() => {
+              localStorage.clear();
+              this.setState({ hasError: false });
+              window.location.reload();
+            }}
+            style={{
+              padding: '10px 20px',
+              margin: '20px 0',
+              backgroundColor: '#4e4eff',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            Clear Data & Restart
+          </button>
+        </div>
+      );
+    }
+    
+    return this.props.children;
+  }
+}
 
 type User = 'R' | 'B' | null;
 type ReadStatus = 'sent' | 'seen';
@@ -16,6 +59,8 @@ interface Message {
   replyTo?: string;
   media?: string;
 }
+
+export { ErrorBoundary };
 
 export default function App() {
   const [user, setUser] = useState<User>(() => {
@@ -57,15 +102,20 @@ export default function App() {
   useEffect(() => {
     if (messages.length > 0) {
       try {
-        localStorage.setItem('chatMessages', JSON.stringify(messages));
+        // Always keep only the last 30 messages to prevent quota issues
+        const messagesToStore = messages.slice(-30);
+        localStorage.setItem('chatMessages', JSON.stringify(messagesToStore));
       } catch (e) {
-        // Handle localStorage quota exceeded error
         console.warn("Could not save messages to localStorage. Storage quota may be exceeded.");
         
-        // Optional: We could trim the message history to save space
-        if (messages.length > 50) {
-          const trimmedMessages = messages.slice(-50); // Keep only the latest 50 messages
-          setMessages(trimmedMessages);
+        // Try with even fewer messages if we still have issues
+        try {
+          const minimumMessages = messages.slice(-10);
+          localStorage.setItem('chatMessages', JSON.stringify(minimumMessages));
+        } catch (e) {
+          // If still failing, clear storage and keep only the very latest messages
+          localStorage.clear();
+          console.warn("Cleared localStorage due to persistent quota issues");
         }
       }
     }
