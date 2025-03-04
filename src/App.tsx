@@ -56,7 +56,18 @@ export default function App() {
   // Save messages to localStorage (simulating a database)
   useEffect(() => {
     if (messages.length > 0) {
-      localStorage.setItem('chatMessages', JSON.stringify(messages));
+      try {
+        localStorage.setItem('chatMessages', JSON.stringify(messages));
+      } catch (e) {
+        // Handle localStorage quota exceeded error
+        console.warn("Could not save messages to localStorage. Storage quota may be exceeded.");
+        
+        // Optional: We could trim the message history to save space
+        if (messages.length > 50) {
+          const trimmedMessages = messages.slice(-50); // Keep only the latest 50 messages
+          setMessages(trimmedMessages);
+        }
+      }
     }
   }, [messages]);
 
@@ -65,7 +76,7 @@ export default function App() {
     if (user) {
       const updatedMessages = messages.map(msg => 
         msg.sender !== user && msg.readStatus === 'sent' 
-          ? { ...msg, readStatus: 'seen' } 
+          ? { ...msg, readStatus: 'seen' as ReadStatus } 
           : msg
       );
       
